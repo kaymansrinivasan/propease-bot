@@ -6,9 +6,9 @@ app = Flask(__name__)
 
 # ── Your credentials ─────────────────────────────────────────────
 VERIFY_TOKEN    = os.environ.get("VERIFY_TOKEN", "Kayman178")
-WHATSAPP_TOKEN  = os.environ.get("WHATSAPP_TOKEN", "EAAmZBxbR5NdEBRB9kYchOXqsQ9wQdOuq0FcTKj7Nm9WRvgwqeWotq2o8iZALqW5GO0NwfgZA23RtZBiYxeUunCDJvBQt6miYFkshpfXz0SPOHTOGXyQiJWohpeZBSGrLCx52zhkzOXBqfklCTyblZBTogMgYMA1rUZAE6A9QLVZBHQtmJ8M17LgFK18Pw0mWrW59ebfsCpF97aIpvHQo3MzZCI7yPqZB9nUOA9W11iiDDPQT5VztVZBNARSpUtW0QblqmHJE1xGO1M6iBzm3qatASGpZAxYH")
-PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "1033958343139857")
-GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "AIzaSyAVyU3LrVDGR7RLW7n3zWc-5p0XWmkf_zo")      # from aistudio.google.com
+WHATSAPP_TOKEN  = os.environ.get("WHATSAPP_TOKEN", "")
+PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
+GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "")     # from aistudio.google.com
 # ─────────────────────────────────────────────────────────────────
 
 # Session storage
