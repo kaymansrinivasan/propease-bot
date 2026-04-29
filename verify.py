@@ -127,7 +127,31 @@ def handle_message(phone, name, text):
     else:
         send_whatsapp(phone, reply)
 
-# ── Meta verification ────────────────────────────────────────────
+verify = Flask(__name__)
+
+# ✅ ADD IT HERE
+@app.route("/")
+def home():
+    return """
+    <h1>🏡 PropEase AI WhatsApp Assistant</h1>
+    <p>This bot helps real estate companies capture leads automatically via WhatsApp.</p>
+
+    <h3>💡 Features:</h3>
+    <ul>
+        <li>✔ AI-powered conversation (Gemini)</li>
+        <li>✔ Lead qualification (Buy/Rent/Sell)</li>
+        <li>✔ Budget & location capture</li>
+        <li>✔ Automated WhatsApp replies</li>
+    </ul>
+
+    <h3>📲 How it works:</h3>
+    <p>Send "hi" to the WhatsApp test number and experience the flow.</p>
+
+    <h3>⚙️ Tech Stack:</h3>
+    <p>Flask | WhatsApp Cloud API | Gemini API | Render</p>
+    """
+
+# ── Meta verification ───────────────────────────
 @app.route("/verify", methods=["GET"])
 def verify():
     mode      = request.args.get("hub.mode")
