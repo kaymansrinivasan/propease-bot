@@ -1,21 +1,20 @@
 from flask import Flask, request, jsonify
 import requests
 import os
-import time
 
 app = Flask(__name__)
 
-# ── ENV VARIABLES ─────────────────────────────────────
+# ── ENV VARIABLES ─────────────────────────────
 VERIFY_TOKEN    = os.environ.get("VERIFY_TOKEN", "Kayman178")
 WHATSAPP_TOKEN  = os.environ.get("WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
 GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "")
 
-# ── MEMORY STORAGE ────────────────────────────────────
-conversations = {}
+# ── STORAGE (TEMP MEMORY) ─────────────────────
+user_state = {}
 leads = []
 
-# ── LANDING PAGE ──────────────────────────────────────
+# ── LANDING PAGE ──────────────────────────────
 @app.route("/")
 def home():
     return """
@@ -23,17 +22,8 @@ def home():
     <head>
         <title>PropEase AI</title>
         <style>
-            body {
-                font-family: Arial;
-                background: #0f172a;
-                color: white;
-                margin: 0;
-            }
-            .container {
-                max-width: 900px;
-                margin: auto;
-                padding: 60px;
-            }
+            body { font-family: Arial; background: #0f172a; color: white; margin: 0; }
+            .container { max-width: 900px; margin: auto; padding: 60px; }
             h1 { color: #38bdf8; }
             .card {
                 background: #1e293b;
@@ -55,24 +45,20 @@ def home():
     <body>
         <div class="container">
             <h1>🏡 PropEase AI</h1>
-            <p>AI-powered WhatsApp assistant for real estate lead automation.</p>
+            <p>AI-powered WhatsApp lead automation system.</p>
 
             <div class="card">
                 <h3>🚀 Features</h3>
                 <ul>
-                    <li>AI conversation (Gemini)</li>
-                    <li>Lead qualification</li>
+                    <li>Lead qualification (Buy / Rent / Sell)</li>
                     <li>WhatsApp automation</li>
+                    <li>Real-time lead dashboard</li>
                 </ul>
             </div>
 
             <div class="card">
                 <h3>📲 Try it</h3>
-                <p>Send "hi" to the WhatsApp bot</p>
-            </div>
-
-            <div class="card">
-                <h3>🟢 Status: LIVE</h3>
+                <p>Send "hi" on WhatsApp to start.</p>
             </div>
 
             <a class="btn" href="/leads">View Leads</a>
@@ -81,20 +67,50 @@ def home():
     </html>
     """
 
-# ── STATUS API ────────────────────────────────────────
-@app.route("/status")
-def status():
-    return {
-        "status": "running",
-        "service": "PropEase AI Bot"
-    }
-
-# ── VIEW LEADS ────────────────────────────────────────
+# ── LEADS DASHBOARD ───────────────────────────
 @app.route("/leads")
 def view_leads():
-    return {"leads": leads}
+    html = """
+    <html>
+    <head>
+        <title>Leads Dashboard</title>
+        <style>
+            body { font-family: Arial; background: #0f172a; color: white; padding: 40px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 12px; border-bottom: 1px solid #444; }
+            th { background: #1e293b; }
+            tr:hover { background: #1e293b; }
+        </style>
+    </head>
+    <body>
+        <h1>📊 Leads Dashboard</h1>
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Intent</th>
+                <th>Budget</th>
+                <th>Area</th>
+                <th>Contact</th>
+            </tr>
+    """
 
-# ── SEND WHATSAPP ─────────────────────────────────────
+    for lead in leads:
+        html += f"""
+        <tr>
+            <td>{lead.get('name')}</td>
+            <td>{lead.get('phone')}</td>
+            <td>{lead.get('intent')}</td>
+            <td>{lead.get('budget')}</td>
+            <td>{lead.get('area')}</td>
+            <td>{lead.get('contact')}</td>
+        </tr>
+        """
+
+    html += "</table></body></html>"
+    return html
+
+# ── SEND WHATSAPP ─────────────────────────────
 def send_whatsapp(phone, message):
     url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
 
@@ -115,88 +131,58 @@ def send_whatsapp(phone, message):
     print("WhatsApp Status:", response.status_code)
     print("WhatsApp Response:", response.text)
 
-# ── GEMINI AI ─────────────────────────────────────────
-def ask_gemini(phone, name, user_message):
-
-    # Basic fallback (save quota)
-    if user_message.lower() in ["hi", "hello"]:
-        return "Hi! Are you looking to Buy, Rent, or Sell a property?"
-
-    if phone not in conversations:
-        conversations[phone] = []
-
-    conversations[phone].append({
-        "role": "user",
-        "parts": [{"text": user_message}]
-    })
-
-    system_prompt = f"""
-    You are a real estate assistant for PropEase Realty.
-    Customer name: {name}
-
-    Ask step-by-step:
-    1. Buy/Rent/Sell
-    2. Budget
-    3. Area
-    4. Contact
-
-    When done, end with LEAD_COMPLETE
-    """
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-
-    payload = {
-        "system_instruction": {
-            "parts": [{"text": system_prompt}]
-        },
-        "contents": conversations[phone]
-    }
-
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        result = response.json()
-
-        print("Gemini:", result)
-
-        # Handle quota error
-        if "error" in result:
-            code = result["error"]["code"]
-
-            if code == 429:
-                return "⚠️ I'm currently busy. Please try again later."
-
-        reply = result["candidates"][0]["content"]["parts"][0]["text"]
-
-    except Exception as e:
-        print("Gemini Error:", e)
-        return "⚠️ Error processing request."
-
-    conversations[phone].append({
-        "role": "model",
-        "parts": [{"text": reply}]
-    })
-
-    return reply
-
-# ── HANDLE MESSAGE ────────────────────────────────────
+# ── MESSAGE HANDLER (STATE-BASED) ─────────────
 def handle_message(phone, name, text):
-    reply = ask_gemini(phone, name, text)
 
-    if "LEAD_COMPLETE" in reply:
-        clean_reply = reply.replace("LEAD_COMPLETE", "").strip()
+    # Start flow
+    if text.lower() in ["hi", "hello", "start"]:
+        user_state[phone] = {"step": 1}
+        send_whatsapp(phone, "Hi! Are you looking to Buy, Rent, or Sell a property?")
+        return
 
-        # Save lead
+    if phone not in user_state:
+        user_state[phone] = {"step": 1}
+        send_whatsapp(phone, "Please type 'hi' to start.")
+        return
+
+    step = user_state[phone]["step"]
+
+    if step == 1:
+        user_state[phone]["intent"] = text
+        user_state[phone]["step"] = 2
+        send_whatsapp(phone, "What is your budget?")
+
+    elif step == 2:
+        user_state[phone]["budget"] = text
+        user_state[phone]["step"] = 3
+        send_whatsapp(phone, "Which area are you interested in?")
+
+    elif step == 3:
+        user_state[phone]["area"] = text
+        user_state[phone]["step"] = 4
+        send_whatsapp(phone, "Please provide your contact number.")
+
+    elif step == 4:
+        user_state[phone]["contact"] = text
+
+        # SAVE LEAD
         leads.append({
             "name": name,
             "phone": phone,
-            "summary": clean_reply
+            "intent": user_state[phone]["intent"],
+            "budget": user_state[phone]["budget"],
+            "area": user_state[phone]["area"],
+            "contact": text
         })
 
-        send_whatsapp(phone, clean_reply)
-    else:
-        send_whatsapp(phone, reply)
+        send_whatsapp(phone, "✅ Thank you! Our agent will contact you soon.")
 
-# ── VERIFY WEBHOOK ────────────────────────────────────
+        print("✅ LEAD SAVED:", leads[-1])
+
+        # Reset state
+        del user_state[phone]
+
+# ── VERIFY WEBHOOK ────────────────────────────
 @app.route("/verify", methods=["GET"])
 def verify():
     mode      = request.args.get("hub.mode")
@@ -208,7 +194,7 @@ def verify():
 
     return "Forbidden", 403
 
-# ── RECEIVE MESSAGE ───────────────────────────────────
+# ── RECEIVE MESSAGE ───────────────────────────
 @app.route("/verify", methods=["POST"])
 def webhook():
     data = request.get_json()
@@ -235,7 +221,7 @@ def webhook():
 
     return jsonify({"status": "ok"}), 200
 
-# ── RUN ───────────────────────────────────────────────
+# ── RUN ───────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
