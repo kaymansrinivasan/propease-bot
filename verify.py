@@ -133,22 +133,77 @@ verify = Flask(__name__)
 @app.route("/")
 def home():
     return """
-    <h1>🏡 PropEase AI WhatsApp Assistant</h1>
-    <p>This bot helps real estate companies capture leads automatically via WhatsApp.</p>
+    <html>
+    <head>
+        <title>PropEase AI</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                background: #0f172a;
+                color: white;
+            }
+            .container {
+                padding: 60px;
+                max-width: 900px;
+                margin: auto;
+            }
+            h1 {
+                font-size: 40px;
+                color: #38bdf8;
+            }
+            p {
+                color: #cbd5f5;
+            }
+            .card {
+                background: #1e293b;
+                padding: 20px;
+                border-radius: 12px;
+                margin-top: 20px;
+            }
+            .btn {
+                display: inline-block;
+                padding: 12px 20px;
+                background: #38bdf8;
+                color: black;
+                border-radius: 8px;
+                text-decoration: none;
+                margin-top: 20px;
+                font-weight: bold;
+            }
+        </style>
+    </head>
 
-    <h3>💡 Features:</h3>
-    <ul>
-        <li>✔ AI-powered conversation (Gemini)</li>
-        <li>✔ Lead qualification (Buy/Rent/Sell)</li>
-        <li>✔ Budget & location capture</li>
-        <li>✔ Automated WhatsApp replies</li>
-    </ul>
+    <body>
+        <div class="container">
+            <h1>🏡 PropEase AI</h1>
+            <p>AI-powered WhatsApp assistant for real estate lead automation.</p>
 
-    <h3>📲 How it works:</h3>
-    <p>Send "hi" to the WhatsApp test number and experience the flow.</p>
+            <div class="card">
+                <h3>🚀 What it does</h3>
+                <p>Automatically qualifies leads, collects budget, location, and intent — all through WhatsApp.</p>
+            </div>
 
-    <h3>⚙️ Tech Stack:</h3>
-    <p>Flask | WhatsApp Cloud API | Gemini API | Render</p>
+            <div class="card">
+                <h3>⚡ Features</h3>
+                <ul>
+                    <li>AI conversation (Gemini)</li>
+                    <li>Lead qualification (Buy / Rent / Sell)</li>
+                    <li>Real-time WhatsApp automation</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3>📲 Try it</h3>
+                <p>Message "hi" on WhatsApp to see the bot in action.</p>
+            </div>
+
+            <a class="btn" href="https://github.com/kaymansrinivasan/propease-bot" target="_blank">
+                View GitHub →
+            </a>
+        </div>
+    </body>
+    </html>
     """
 
 # ── Meta verification ───────────────────────────
