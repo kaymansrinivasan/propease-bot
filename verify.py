@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import time
 
 app = Flask(__name__)
 
@@ -8,10 +9,9 @@ app = Flask(__name__)
 VERIFY_TOKEN    = os.environ.get("VERIFY_TOKEN", "Kayman178")
 WHATSAPP_TOKEN  = os.environ.get("WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
-GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "")     # from aistudio.google.com
+GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "")
 # ─────────────────────────────────────────────────────────────────
 
-# Session storage
 conversations = {}
 
 def send_whatsapp(phone, message):
@@ -29,15 +29,12 @@ def send_whatsapp(phone, message):
     requests.post(url, headers=headers, json=data)
 
 def ask_gemini(phone, name, user_message):
-    # Reset conversation if greeting
     if user_message.strip().lower() in ["hi", "hello", "hey", "start"]:
         conversations[phone] = []
 
-    # Initialize if new user
     if phone not in conversations:
         conversations[phone] = []
 
-    # Add user message
     conversations[phone].append({
         "role": "user",
         "parts": [{"text": user_message}]
@@ -63,6 +60,7 @@ Rules:
   and give a clean summary before it"""
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+
     payload = {
         "system_instruction": {
             "parts": [{"text": system_prompt}]
@@ -70,16 +68,41 @@ Rules:
         "contents": conversations[phone]
     }
 
-    try:
-        response = requests.post(url, json=payload)
-        result = response.json()
-        print(f"Gemini response: {result}") ###
-        reply = result["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(f"Gemini error: {e}")
-        reply = "Sorry, I am having trouble right now. Please try again."
+    reply = "Sorry, I am a bit busy right now. Please send your message again in a moment!"
 
-    # Add assistant reply to history
+    # Retry up to 3 times
+    for attempt in range(3):
+        try:
+            response = requests.post(url, json=payload)
+            result = response.json()
+            print(f"Gemini response: {result}")
+
+            # Handle errors from Gemini
+            if "error" in result:
+                code = result["error"]["code"]
+                msg  = result["error"]["message"]
+                print(f"Gemini error code {code}: {msg}")
+
+                if code in [503, 429]:
+                    # Overloaded or rate limited — wait and retry
+                    print(f"Retrying in 3s... (attempt {attempt + 1})")
+                    time.sleep(3)
+                    continue
+                else:
+                    # Other errors — don't retry
+                    break
+
+            reply = result["candidates"][0]["content"]["parts"][0]["text"]
+            break  # Success — exit retry loop
+
+        except Exception as e:
+            print(f"Gemini exception: {e}")
+            if attempt < 2:
+                time.sleep(3)
+                continue
+            break
+
+    # Save reply to conversation history
     conversations[phone].append({
         "role": "model",
         "parts": [{"text": reply}]
@@ -94,7 +117,6 @@ Rules:
 def handle_message(phone, name, text):
     reply = ask_gemini(phone, name, text)
 
-    # Check if lead collection is complete
     if "LEAD_COMPLETE" in reply:
         clean_reply = reply.replace("LEAD_COMPLETE", "").strip()
         send_whatsapp(phone, clean_reply)
