@@ -26,7 +26,11 @@ def send_whatsapp(phone, message):
         "type": "text",
         "text": {"body": message}
     }
-    requests.post(url, headers=headers, json=data)
+
+    response = requests.post(url, headers=headers, json=data)
+
+    print("WhatsApp API Status:", response.status_code)
+    print("WhatsApp API Response:", response.text)
 
 def ask_gemini(phone, name, user_message):
     if user_message.strip().lower() in ["hi", "hello", "hey", "start"]:
