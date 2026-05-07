@@ -7,6 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
+load_attempted = False
 
 VERIFY_TOKEN    = os.environ.get("VERIFY_TOKEN", "Kayman178")
 WHATSAPP_TOKEN  = os.environ.get("WHATSAPP_TOKEN", "")
@@ -138,6 +139,11 @@ def load_leads_from_sheet():
 
     except Exception as e:
         print(f"Load error: {e}")
+
+try:
+    load_leads_from_sheet()
+except Exception as e:
+    print("Startup load failed:", e)
 
 SYSTEM_PROMPT = """
 You are a concise, professional real estate assistant for PropEase Realty, Malaysia.
@@ -1822,8 +1828,6 @@ def webhook():
     return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-
-    load_leads_from_sheet()
 
     port = int(os.environ.get("PORT", 5001))
 
