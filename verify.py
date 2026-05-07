@@ -1,6 +1,10 @@
 from flask import Flask, request, jsonify, Response
 import requests, os, json, re
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+import gspread
+from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
 
@@ -23,8 +27,117 @@ def extract_json_block(text):
         return {}
 
 def normalize_number(text):
-    nums = re.findall(r'\d+', str(text))
+    text = str(text).lower().replace(",", "").strip()
+
+    if "k" in text:
+        num = re.findall(r'\d+', text)
+        return str(int(num[0]) * 1000) if num else text
+
+    if "m" in text:
+        num = re.findall(r'\d+', text)
+        return str(int(num[0]) * 1000000) if num else text
+
+    nums = re.findall(r'\d+', text)
     return nums[0] if nums else text
+
+def get_sheet():
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+
+    creds_dict = {
+        "type": "service_account",
+        "project_id": os.environ.get("GOOGLE_PROJECT_ID", "propease"),
+        "private_key": os.environ.get("GOOGLE_PRIVATE_KEY", "").replace("\\n", "\n"),
+        "client_email": os.environ.get("GOOGLE_CLIENT_EMAIL", ""),
+        "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": os.environ.get("GOOGLE_CLIENT_X509_CERT_URL", "")
+    }
+
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+
+    client = gspread.authorize(creds)
+
+    sheet = client.open_by_key(
+        os.environ.get("GOOGLE_SHEET_ID", "")
+    ).sheet1
+
+    return sheet
+
+
+def save_lead_to_sheet(lead):
+    try:
+        sheet = get_sheet()
+
+        sheet.append_row([
+            lead["time"],
+            lead["name"],
+            lead["phone"],
+            lead["intent"],
+            lead["budget"],
+            lead["area"],
+            lead["contact"]
+        ])
+
+        print("Lead saved to Google Sheets")
+
+    except Exception as e:
+        print(f"Sheet error: {e}")
+
+
+def load_leads_from_sheet():
+    global leads, stats
+
+    try:
+        sheet = get_sheet()
+
+        rows = sheet.get_all_records()
+
+        leads = []
+
+        stats = {
+            "total": 0,
+            "buy": 0,
+            "rent": 0,
+            "sell": 0,
+            "today": 0
+        }
+
+        for row in rows:
+
+            lead = {
+                "time": row.get("Timestamp", ""),
+                "name": row.get("Name", ""),
+                "phone": row.get("Phone", ""),
+                "intent": row.get("Intent", ""),
+                "budget": row.get("Budget", ""),
+                "area": row.get("Area", ""),
+                "contact": row.get("Contact", "")
+            }
+
+            leads.append(lead)
+
+            stats["total"] += 1
+
+            intent = lead["intent"].lower()
+
+            if "buy" in intent:
+                stats["buy"] += 1
+
+            elif "rent" in intent:
+                stats["rent"] += 1
+
+            elif "sell" in intent:
+                stats["sell"] += 1
+
+        print(f"Loaded {len(leads)} leads from Google Sheets")
+
+    except Exception as e:
+        print(f"Load error: {e}")
 
 SYSTEM_PROMPT = """
 You are a concise, professional real estate assistant for PropEase Realty, Malaysia.
@@ -98,22 +211,83 @@ def handle_message(phone, name, text):
     reply = data.get("reply", "Please try again.")
     send_whatsapp(phone, reply)
     if data.get("complete"):
+
         intent = data.get("intent", "").lower()
+
         lead = {
-            "name": name, "phone": phone,
+            "name": name,
+            "phone": phone,
             "intent": data.get("intent", ""),
             "budget": normalize_number(data.get("budget", "")),
             "area": data.get("area", ""),
             "contact": data.get("contact", ""),
-            "time": datetime.now().strftime("%d %b %Y, %H:%M")
+            "time": datetime.now(
+                ZoneInfo("Asia/Kuala_Lumpur")
+            ).strftime("%d %b %Y, %H:%M")
         }
-        leads.append(lead)
-        stats["total"] += 1
-        stats["today"] += 1
-        if "buy" in intent: stats["buy"] += 1
-        elif "rent" in intent: stats["rent"] += 1
-        elif "sell" in intent: stats["sell"] += 1
-        print("LEAD SAVED:", lead)
+
+        existing = any(
+            l["phone"] == phone and
+            l["contact"] == data.get("contact", "")
+            for l in leads
+        )
+
+        if not existing:
+
+            leads.append(lead)
+
+            save_lead_to_sheet(lead)
+
+            stats["total"] += 1
+            stats["today"] += 1
+
+            if "buy" in intent:
+                stats["buy"] += 1
+
+            elif "rent" in intent:
+                stats["rent"] += 1
+
+            elif "sell" in intent:
+                stats["sell"] += 1
+
+            print("LEAD SAVED:", lead)
+
+        else:
+            print("Duplicate lead skipped")
+
+def get_sheet():
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    # Build credentials from environment variables
+    creds_dict = {
+        "type": "service_account",
+        "project_id": "propease",
+        "private_key": os.environ.get("GOOGLE_PRIVATE_KEY", "").replace("\\n", "\n"),
+        "client_email": os.environ.get("GOOGLE_CLIENT_EMAIL", ""),
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
+    creds  = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    sheet  = client.open_by_key(os.environ.get("GOOGLE_SHEET_ID", "")).sheet1
+    return sheet
+
+def save_lead_to_sheet(lead):
+    try:
+        sheet = get_sheet()
+        sheet.append_row([
+            lead["time"],
+            lead["name"],
+            lead["phone"],
+            lead["intent"],
+            lead["budget"],
+            lead["area"],
+            lead["contact"]
+        ])
+        print("Lead saved to Google Sheets")
+    except Exception as e:
+        print(f"Sheet error: {e}")
 
 HOME_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -1648,5 +1822,9 @@ def webhook():
     return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
+
+    load_leads_from_sheet()
+
     port = int(os.environ.get("PORT", 5001))
+
     app.run(host="0.0.0.0", port=port)
